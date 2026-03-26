@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sequence → GIF</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0e0f;
+    --surface: #141517;
+    --surface2: #1c1e21;
+    --surface3: #242628;
+    --border: #2a2d31;
+    --border2: #383c42;
+    --accent: #e8c547;
+    --accent2: #c8a830;
+    --text: #d4d6da;
+    --text-dim: #6e737d;
+    --text-dimmer: #3f4349;
+    --green: #4caf78;
+    --red: #e05252;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    background: var(--surface);
+  }
+  .logo { font-size: 18px; font-weight: 600; letter-spacing: -0.5px; color: #fff; }
+  .logo span { color: var(--accent); }
+  .logo-sub { font-size: 11px; color: var(--text-dim); letter-spacing: 0.05em; font-weight: 300; }
+
+  .app {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    min-height: calc(100vh - 57px);
+  }
+
+  .drop-area {
+    grid-column: 1;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+  .drop-zone {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 2px dashed var(--border2);
+    margin: 20px 24px 16px;
+    border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s;
+    min-height: 400px;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(232,197,71,0.04);
+  }
+  .drop-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.4; }
+  .drop-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+  .drop-sub { font-size: 11px; color: var(--text-dim); text-align: center; padding: 0 24px; }
+  #fileInput { display: none; }
+
+  .frame-section { padding: 0 24px 16px; flex-shrink: 0; }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .section-label { font-size: 10px; font-weight: 500; letter-spacing: 0.12em; color: var(--text-dim); text-transform: uppercase; }
+  .frame-count-badge { font-size: 11px; color: var(--accent); background: rgba(232,197,71,0.1); padding: 2px 8px; border-radius: 2px; }
+
+  .frame-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    gap: 4px;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+  .frame-grid::-webkit-scrollbar { width: 4px; }
+  .frame-grid::-webkit-scrollbar-track { background: transparent; }
+  .frame-grid::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .frame-thumb {
+    aspect-ratio: 16/9; background: var(--surface3); border-radius: 2px;
+    overflow: hidden; position: relative; border: 1px solid var(--border);
+  }
+  .frame-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .frame-thumb .frame-num {
+    position: absolute; bottom: 2px; left: 3px;
+    font-size: 9px; color: rgba(255,255,255,0.5); line-height: 1;
+  }
+
+  .sidebar {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: stretch;
+    background: var(--surface);
+    overflow-y: auto;
+    border-left: 1px solid var(--border);
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .settings-group { padding: 18px 20px; border-bottom: 1px solid var(--border); }
+  .settings-group-title {
+    font-size: 9px; font-weight: 600; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--text-dimmer); margin-bottom: 14px;
+  }
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  .field-label {
+    font-size: 11px; color: var(--text-dim); margin-bottom: 5px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  /* Editable value badge */
+  .field-value-wrap { display: flex; align-items: center; gap: 2px; }
+  .field-value {
+    color: var(--accent);
+    font-weight: 500;
+    font-size: 11px;
+    font-family: var(--mono);
+    background: rgba(232,197,71,0.08);
+    border: 1px solid transparent;
+    border-radius: 2px;
+    padding: 1px 5px;
+    cursor: text;
+    transition: border-color 0.12s, background 0.12s;
+    width: auto;
+    min-width: 28px;
+    max-width: 60px;
+    text-align: right;
+    /* override the general number input styles */
+    appearance: none;
+    -moz-appearance: textfield;
+  }
+  .field-value::-webkit-inner-spin-button,
+  .field-value::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .field-value:hover { border-color: rgba(232,197,71,0.35); }
+  .field-value:focus { outline: none; border-color: var(--accent); background: rgba(232,197,71,0.14); }
+  .field-value-unit { font-size: 10px; color: var(--text-dimmer); }
+
+  input[type="number"], input[type="text"], select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 7px 10px;
+    border-radius: 3px;
+    outline: none;
+    transition: border-color 0.15s;
+    appearance: none;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input[type="number"] { -moz-appearance: textfield; }
+  input[type="number"]:focus, input[type="text"]:focus, select:focus { border-color: var(--accent); }
+
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236e737d' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+    cursor: pointer;
+  }
+  select option { background: var(--surface2); }
+
+  input[type="range"] {
+    width: 100%;
+    appearance: none;
+    height: 3px;
+    background: var(--surface3);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none; width: 13px; height: 13px;
+    border-radius: 50%; background: var(--accent);
+    cursor: pointer; transition: transform 0.1s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type="range"]::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--accent); border: none; cursor: pointer;
+  }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .toggle-row:last-child { margin-bottom: 0; }
+  .toggle-label { font-size: 11px; color: var(--text-dim); }
+  .toggle { position: relative; width: 34px; height: 18px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute; inset: 0; background: var(--surface3);
+    border-radius: 9px; cursor: pointer;
+    transition: background 0.2s; border: 1px solid var(--border2);
+  }
+  .toggle input:checked + .toggle-track { background: var(--accent); border-color: var(--accent); }
+  .toggle-track::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 12px; height: 12px; background: #fff;
+    border-radius: 50%; transition: transform 0.2s;
+  }
+  .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
+
+  .color-row { display: flex; gap: 8px; align-items: center; }
+  input[type="color"] {
+    width: 32px; height: 32px; border: 1px solid var(--border);
+    border-radius: 3px; padding: 2px; background: var(--surface2);
+    cursor: pointer; flex-shrink: 0;
+  }
+  .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  .output-section {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 10px;
+    flex-shrink: 0;
+  }
+  .progress-bar-wrap { display: none; flex-direction: column; gap: 6px; }
+  .progress-bar-wrap.visible { display: flex; }
+  .progress-bar-track { height: 3px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width 0.15s; }
+  .progress-label { font-size: 11px; color: var(--text-dim); display: flex; justify-content: space-between; }
+
+  .encode-btn {
+    background: var(--accent); color: #111; border: none;
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    padding: 11px 24px; border-radius: 3px; cursor: pointer;
+    letter-spacing: 0.05em; transition: background 0.15s, transform 0.1s;
+    align-self: flex-start; display: flex; align-items: center; gap: 8px;
+  }
+  .encode-btn:hover { background: #f0cf59; }
+  .encode-btn:active { transform: scale(0.98); }
+  .encode-btn:disabled { background: var(--surface3); color: var(--text-dimmer); cursor: not-allowed; }
+
+  .status-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-dim); min-height: 20px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dimmer); flex-shrink: 0; }
+  .status-dot.ready { background: var(--green); }
+  .status-dot.working { background: var(--accent); animation: pulse 1s infinite; }
+  .status-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .action-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .clear-btn {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    font-family: var(--mono); font-size: 11px; padding: 7px 14px;
+    border-radius: 3px; cursor: pointer; transition: border-color 0.15s, color 0.15s;
+  }
+  .clear-btn:hover { border-color: var(--border2); color: var(--text); }
+
+  /* Results list */
+  .results-list { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; max-height: 320px; overflow-y: auto; padding-right: 2px; }
+  .results-list::-webkit-scrollbar { width: 4px; }
+  .results-list::-webkit-scrollbar-track { background: transparent; }
+  .results-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .result-item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 3px; padding: 8px 10px;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .result-preview {
+    width: 80px; height: 45px; object-fit: contain; border-radius: 2px; flex-shrink: 0;
+    background: repeating-conic-gradient(#1a1a1a 0% 25%, #222 0% 50%) 0 0 / 8px 8px;
+    border: 1px solid var(--border);
+  }
+  .result-info { flex: 1; min-width: 0; }
+  .result-label { font-size: 11px; color: var(--text); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .result-meta { font-size: 10px; color: var(--text-dimmer); }
+  .result-download {
+    background: var(--green); color: #0d1a13; border: none;
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    padding: 7px 14px; border-radius: 3px; cursor: pointer;
+    letter-spacing: 0.04em; text-decoration: none; white-space: nowrap;
+    transition: background 0.15s; flex-shrink: 0;
+  }
+  .result-download:hover { background: #5dcf89; }
+  .result-remove {
+    background: none; border: none; color: var(--text-dimmer);
+    font-size: 14px; cursor: pointer; padding: 4px 6px; border-radius: 2px;
+    transition: color 0.15s; line-height: 1; flex-shrink: 0;
+  }
+  .result-remove:hover { color: var(--red); }
+
+  .warn-banner {
+    display: none; background: rgba(232,197,71,0.08);
+    border: 1px solid rgba(232,197,71,0.2); border-radius: 3px;
+    padding: 8px 12px; font-size: 11px; color: var(--accent2); line-height: 1.5;
+  }
+  .warn-banner.visible { display: block; }
+  .size-note { font-size: 10px; color: var(--text-dimmer); margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Sequence<span>→</span>GIF</div>
+  <div class="logo-sub">image sequence encoder</div>
+</header>
+
+<div class="app">
+
+  <div class="drop-area">
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon">⬡</div>
+      <div class="drop-title">Drop image files here</div>
+      <div class="drop-sub">PNG · JPG · WebP · BMP · GIF &nbsp;— sorted by filename — or click to browse</div>
+      <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp,image/gif" multiple>
+    </div>
+
+    <div class="frame-section" id="frameSection" style="display:none">
+      <div class="section-header">
+        <span class="section-label">Frames</span>
+        <span class="frame-count-badge" id="frameCountBadge">0 loaded</span>
+      </div>
+      <div class="frame-grid" id="frameGrid"></div>
+    </div>
+
+  <div class="output-section">
+    <div class="warn-banner" id="warnBanner"></div>
+
+    <div class="action-row">
+      <button class="encode-btn" id="encodeBtn" disabled>▶ Encode GIF</button>
+      <button class="clear-btn" id="clearFramesBtn">Clear frames</button>
+      <button class="clear-btn" id="clearResultsBtn" style="display:none">Clear results</button>
+    </div>
+
+    <div class="status-row">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">No frames loaded</span>
+    </div>
+
+    <div class="progress-bar-wrap" id="progressWrap">
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
+      <div class="progress-label">
+        <span id="progressText">Encoding…</span>
+        <span id="progressPct">0%</span>
+      </div>
+    </div>
+
+    <div class="results-list" id="resultsList"></div>
+  </div>
+
+  </div>
+
+  <div class="sidebar">
+
+    <div class="settings-group">
+      <div class="settings-group-title">Output</div>
+
+      <div class="field">
+        <div class="field-label">
+          <span>Framerate</span>
+          <div class="field-value-wrap">
+            <input class="field-value" id="fpsVal" type="number" min="1" max="120" value="16" title="Click to type a value">
+            <span class="field-value-unit">fps</span>
+          </div>
+        </div>
+        <input type="range" id="fps" min="1" max="60" value="16">
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span>Dimensions</span></div>
+        <div class="input-grid">
+          <input type="number" id="outWidth" value="1920" min="1" max="8192" placeholder="Width">
+          <input type="number" id="outHeight" value="1080" min="1" max="8192" placeholder="Height">
+        </div>
+        <div class="size-note">Large resolutions encode slowly in-browser</div>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Resize output</span>
+        <label class="toggle">
+          <input type="checkbox" id="doResize" checked>
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Loop forever</span>
+        <label class="toggle">
+          <input type="checkbox" id="loopForever" checked>
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-group-title">Transparency</div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Preserve transparency</span>
+        <label class="toggle">
+          <input type="checkbox" id="useTransparency" checked>
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span>Background fill (no alpha)</span></div>
+        <div class="color-row">
+          <input type="color" id="bgColor" value="#000000">
+          <input type="text" id="bgColorHex" value="#000000" style="flex:1">
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          <span>Alpha threshold</span>
+          <div class="field-value-wrap">
+            <input class="field-value" id="alphaThreshVal" type="number" min="0" max="255" value="128" title="Click to type a value">
+          </div>
+        </div>
+        <input type="range" id="alphaThresh" min="0" max="255" value="128">
+        <div class="size-note">Pixels below this alpha become fully transparent</div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-group-title">Color / Quality</div>
+
+      <div class="field">
+        <div class="field-label">
+          <span>Color palette</span>
+          <div class="field-value-wrap">
+            <input class="field-value" id="colorsVal" type="number" min="2" max="256" value="256" title="Click to type a value">
+            <span class="field-value-unit">colors</span>
+          </div>
+        </div>
+        <input type="range" id="colors" min="2" max="256" value="256" step="2">
+        <div class="size-note">Max unique colors per frame (2–256)</div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          <span>Quality</span>
+          <div class="field-value-wrap">
+            <input class="field-value" id="qualityVal" type="number" min="1" max="30" value="10" title="Click to type a value">
+          </div>
+        </div>
+        <input type="range" id="quality" min="1" max="30" value="10">
+        <div class="size-note">Lower = better quality, slower encode</div>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span>Dithering</span></div>
+        <select id="dither">
+          <option value="false">None</option>
+          <option value="FloydSteinberg">Floyd-Steinberg</option>
+          <option value="FalseFloydSteinberg">False Floyd-Steinberg</option>
+          <option value="Stucki">Stucki</option>
+          <option value="Atkinson">Atkinson</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-group-title">Timing</div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Per-frame delay override</span>
+        <label class="toggle">
+          <input type="checkbox" id="useCustomDelay">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+
+      <div class="field" id="customDelayField" style="display:none">
+        <div class="field-label">
+          <span>Delay</span>
+          <div class="field-value-wrap">
+            <input class="field-value" id="customDelayVal" type="number" min="10" max="5000" step="10" value="100" title="Click to type a value">
+            <span class="field-value-unit">ms</span>
+          </div>
+        </div>
+        <input type="range" id="customDelay" min="10" max="2000" step="10" value="100">
+      </div>
+    </div>
+
+  </div>
+
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<script>
+// ── Worker blob (fixes null-origin Worker restriction) ────────────────────────
+let workerBlobUrl = null;
+async function initWorkerBlob() {
+  try {
+    const res  = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+    const text = await res.text();
+    workerBlobUrl = URL.createObjectURL(new Blob([text], { type: 'application/javascript' }));
+  } catch(e) { console.warn('gif worker fetch failed', e); }
+}
+initWorkerBlob();
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const dropZone       = document.getElementById('dropZone');
+const fileInput      = document.getElementById('fileInput');
+const frameGrid      = document.getElementById('frameGrid');
+const frameSection   = document.getElementById('frameSection');
+const frameCountBadge= document.getElementById('frameCountBadge');
+
+const fpsEl          = document.getElementById('fps');
+const fpsVal         = document.getElementById('fpsVal');
+const outWidthEl     = document.getElementById('outWidth');
+const outHeightEl    = document.getElementById('outHeight');
+const doResizeEl     = document.getElementById('doResize');
+const loopEl         = document.getElementById('loopForever');
+
+const useTransEl     = document.getElementById('useTransparency');
+const bgColorEl      = document.getElementById('bgColor');
+const bgColorHex     = document.getElementById('bgColorHex');
+const alphaThreshEl  = document.getElementById('alphaThresh');
+const alphaThreshVal = document.getElementById('alphaThreshVal');
+
+const colorsEl       = document.getElementById('colors');
+const colorsVal      = document.getElementById('colorsVal');
+const qualityEl      = document.getElementById('quality');
+const qualityVal     = document.getElementById('qualityVal');
+const ditherEl       = document.getElementById('dither');
+
+const useCustomDelayEl = document.getElementById('useCustomDelay');
+const customDelayField = document.getElementById('customDelayField');
+const customDelayEl    = document.getElementById('customDelay');
+const customDelayVal   = document.getElementById('customDelayVal');
+
+const encodeBtn         = document.getElementById('encodeBtn');
+const clearFramesBtn    = document.getElementById('clearFramesBtn');
+const clearResultsBtn   = document.getElementById('clearResultsBtn');
+const resultsList       = document.getElementById('resultsList');
+const statusDot         = document.getElementById('statusDot');
+const statusText     = document.getElementById('statusText');
+const progressWrap   = document.getElementById('progressWrap');
+const progressFill   = document.getElementById('progressFill');
+const progressText   = document.getElementById('progressText');
+const progressPct    = document.getElementById('progressPct');
+const warnBanner     = document.getElementById('warnBanner');
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let loadedFiles = [];
+let currentGif  = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function naturalSort(a, b) {
+  return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+}
+function setStatus(state, msg) {
+  statusDot.className = 'status-dot' + (state ? ' ' + state : '');
+  statusText.textContent = msg;
+}
+function showWarn(msg) {
+  if (msg) { warnBanner.textContent = msg; warnBanner.classList.add('visible'); }
+  else      { warnBanner.classList.remove('visible'); }
+}
+function setProgress(pct, label) {
+  progressFill.style.width = pct + '%';
+  progressPct.textContent  = Math.round(pct) + '%';
+  if (label !== undefined) progressText.textContent = label;
+}
+
+// ── Slider <-> editable badge syncing ────────────────────────────────────────
+function linkSliderInput(slider, badge) {
+  const lo = parseFloat(slider.min);
+  const hi = parseFloat(slider.max);
+
+  // Slider → badge
+  slider.addEventListener('input', () => { badge.value = slider.value; });
+
+  // Badge → slider (live while typing)
+  badge.addEventListener('input', () => {
+    const v = parseFloat(badge.value);
+    if (!isNaN(v)) slider.value = clamp(v, lo, hi);
+  });
+
+  // Badge → clamp on commit (blur / Enter)
+  function commitBadge() {
+    const v = parseFloat(badge.value);
+    if (isNaN(v) || badge.value === '') {
+      badge.value = slider.value; // revert
+    } else {
+      const c = clamp(v, lo, hi);
+      badge.value  = c;
+      slider.value = c;
+    }
+  }
+  badge.addEventListener('change', commitBadge);
+  badge.addEventListener('keydown', e => { if (e.key === 'Enter') badge.blur(); });
+}
+
+linkSliderInput(fpsEl,         fpsVal);
+linkSliderInput(alphaThreshEl, alphaThreshVal);
+linkSliderInput(colorsEl,      colorsVal);
+linkSliderInput(qualityEl,     qualityVal);
+linkSliderInput(customDelayEl, customDelayVal);
+
+// Color hex sync
+bgColorEl.oninput  = () => { bgColorHex.value = bgColorEl.value; };
+bgColorHex.oninput = () => {
+  if (/^#[0-9a-fA-F]{6}$/.test(bgColorHex.value)) bgColorEl.value = bgColorHex.value;
+};
+
+useCustomDelayEl.onchange = () => {
+  customDelayField.style.display = useCustomDelayEl.checked ? 'block' : 'none';
+};
+
+// ── File loading ──────────────────────────────────────────────────────────────
+const ACCEPTED = ['image/png','image/jpeg','image/webp','image/bmp','image/gif'];
+
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => loadFiles(Array.from(e.target.files)));
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  loadFiles(Array.from(e.dataTransfer.files).filter(f => ACCEPTED.includes(f.type)));
+});
+
+async function loadFiles(files) {
+  if (!files.length) return;
+  showWarn('');
+  setStatus('working', 'Loading frames…');
+  encodeBtn.disabled = true;
+
+  const sorted = [...files].sort(naturalSort);
+  const results = (await Promise.all(sorted.map(file => new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload  = () => resolve({ name: file.name, url, img });
+    img.onerror = () => resolve(null);
+    img.src = url;
+  })))).filter(Boolean);
+
+  // Release old object URLs then replace
+  loadedFiles.forEach(f => URL.revokeObjectURL(f.url));
+  loadedFiles = results;
+
+  renderFrameGrid();
+  setStatus('ready', `${loadedFiles.length} frame${loadedFiles.length !== 1 ? 's' : ''} loaded`);
+  encodeBtn.disabled = loadedFiles.length === 0;
+}
+
+function renderFrameGrid() {
+  frameGrid.innerHTML = '';
+  frameSection.style.display = loadedFiles.length ? 'block' : 'none';
+  if (!loadedFiles.length) return;
+
+  frameCountBadge.textContent = loadedFiles.length + ' loaded';
+  loadedFiles.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'frame-thumb';
+    div.dataset.index = i;
+    const img = document.createElement('img');
+    img.src = f.url;
+    const num = document.createElement('span');
+    num.className = 'frame-num';
+    num.textContent = i + 1;
+    div.appendChild(img);
+    div.appendChild(num);
+    frameGrid.appendChild(div);
+  });
+}
+
+// ── Clear frames ──────────────────────────────────────────────────────────────
+clearFramesBtn.onclick = () => {
+  if (currentGif) { try { currentGif.abort(); } catch(e){} currentGif = null; }
+  loadedFiles.forEach(f => URL.revokeObjectURL(f.url));
+  loadedFiles = [];
+  renderFrameGrid();
+  encodeBtn.disabled = true;
+  progressWrap.classList.remove('visible');
+  setStatus('', 'No frames loaded');
+  showWarn('');
+  fileInput.value = '';
+};
+
+// ── Clear results ─────────────────────────────────────────────────────────────
+clearResultsBtn.onclick = () => {
+  // Revoke all result blob URLs to free memory
+  resultsList.querySelectorAll('a.result-download').forEach(a => {
+    if (a.href.startsWith('blob:')) URL.revokeObjectURL(a.href);
+  });
+  resultsList.innerHTML = '';
+  clearResultsBtn.style.display = 'none';
+  progressWrap.classList.remove('visible');
+};
+
+// ── Encode ────────────────────────────────────────────────────────────────────
+encodeBtn.onclick = async () => {
+  if (!loadedFiles.length) return;
+  if (!workerBlobUrl) {
+    setStatus('error', 'Worker not ready — wait a moment and try again.');
+    return;
+  }
+
+  const fps         = Math.max(1, parseFloat(fpsVal.value)         || 16);
+  const outW        = Math.max(1, parseInt(outWidthEl.value)        || 1920);
+  const outH        = Math.max(1, parseInt(outHeightEl.value)       || 1080);
+  const doResize    = doResizeEl.checked;
+  const loop        = loopEl.checked ? 0 : -1;
+  const trans       = useTransEl.checked;
+  const alphaThresh = parseInt(alphaThreshVal.value);
+  const quality     = parseInt(qualityVal.value);
+  const ditherVal   = ditherEl.value === 'false' ? false : ditherEl.value;
+  const useDelay    = useCustomDelayEl.checked;
+  const delay       = useDelay ? (parseInt(customDelayVal.value) || 100) : Math.round(1000 / fps);
+
+  const frames = loadedFiles; // ALL loaded frames
+  const gifW   = doResize ? outW : frames[0].img.naturalWidth;
+  const gifH   = doResize ? outH : frames[0].img.naturalHeight;
+
+  if (gifW * gifH > 4147200) {
+    showWarn(`⚠ Output is ${gifW}×${gifH} — encoding at this resolution in-browser is slow and memory-intensive. Consider reducing dimensions.`);
+  } else {
+    showWarn('');
+  }
+
+  if (currentGif) { try { currentGif.abort(); } catch(e){} }
+
+  setStatus('working', 'Encoding…');
+  encodeBtn.disabled = true;
+  progressWrap.classList.add('visible');
+  setProgress(0, 'Preparing frames…');
+
+  // Yield so UI can repaint before the heavy loop
+  await new Promise(r => setTimeout(r, 30));
+
+  const gif = new GIF({
+    workers: Math.min(navigator.hardwareConcurrency || 4, 4),
+    workerScript: workerBlobUrl,
+    width: gifW,
+    height: gifH,
+    quality,
+    dither: ditherVal,
+    repeat: loop,
+    transparent: trans ? 0x00000000 : null,
+  });
+  currentGif = gif;
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = gifW;
+  canvas.height = gifH;
+  const ctx = canvas.getContext('2d');
+  const total = frames.length;
+
+  for (let i = 0; i < total; i++) {
+    ctx.clearRect(0, 0, gifW, gifH);
+
+    if (!trans) {
+      ctx.fillStyle = bgColorEl.value;
+      ctx.fillRect(0, 0, gifW, gifH);
+    }
+
+    ctx.drawImage(frames[i].img, 0, 0, gifW, gifH);
+
+    if (trans) {
+      const id = ctx.getImageData(0, 0, gifW, gifH);
+      const d  = id.data;
+      for (let p = 0; p < d.length; p += 4) {
+        if (d[p+3] < alphaThresh) { d[p]=0; d[p+1]=0; d[p+2]=0; d[p+3]=0; }
+        else { d[p+3] = 255; }
+      }
+      ctx.putImageData(id, 0, 0);
+    }
+
+    const fc = document.createElement('canvas');
+    fc.width = gifW; fc.height = gifH;
+    fc.getContext('2d').drawImage(canvas, 0, 0);
+    gif.addFrame(fc, { delay, copy: true });
+
+    // Yield every 10 frames so the browser can breathe
+    if (i % 10 === 9 || i === total - 1) {
+      setProgress((i + 1) / total * 15, `Buffering frame ${i + 1} / ${total}…`);
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+
+  setProgress(15, 'Quantizing & rendering…');
+
+  // gif.js progress (0→1) maps to 15%→100%
+  gif.on('progress', p => {
+    setProgress(15 + p * 85, 'Quantizing & rendering…');
+  });
+
+  gif.on('finished', blob => {
+    const url    = URL.createObjectURL(blob);
+    const sizeKB = (blob.size / 1024).toFixed(0);
+    const n      = resultsList.children.length + 1;
+
+    // Build settings summary for the label
+    const disp = ditherEl.options[ditherEl.selectedIndex].text;
+    const label = `GIF ${n} — ${gifW}×${gifH} · ${total}fr · ${fps}fps · q${quality} · ${disp}`;
+    const meta  = `${sizeKB} KB · ${trans ? 'transparent' : 'opaque'}`;
+
+    const item = document.createElement('div');
+    item.className = 'result-item';
+    item.innerHTML = `
+      <img class="result-preview" src="${url}" alt="GIF ${n}">
+      <div class="result-info">
+        <div class="result-label" title="${label}">${label}</div>
+        <div class="result-meta">${meta}</div>
+      </div>
+      <a class="result-download" href="${url}" download="output_${n}.gif">↓ Download</a>
+      <button class="result-remove" title="Remove">✕</button>
+    `;
+    item.querySelector('.result-remove').onclick = () => {
+      URL.revokeObjectURL(url);
+      item.remove();
+      if (!resultsList.children.length) clearResultsBtn.style.display = 'none';
+    };
+    resultsList.prepend(item);
+    clearResultsBtn.style.display = '';
+
+    setProgress(100, `Done — ${sizeKB} KB`);
+    setStatus('ready', `GIF ${n} encoded: ${gifW}×${gifH}, ${total} frames, ~${sizeKB} KB`);
+    encodeBtn.disabled = false;
+    currentGif = null;
+  });
+
+  gif.on('error', err => {
+    setStatus('error', 'Encode failed: ' + err);
+    encodeBtn.disabled = false;
+    progressWrap.classList.remove('visible');
+    currentGif = null;
+  });
+
+  gif.render();
+};
+</script>
+</body>
+</html>
